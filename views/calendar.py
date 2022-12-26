@@ -304,7 +304,7 @@ def past_tasks():
 def oauth():
     SCOPES = ['https://mail.google.com/']
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-        'credentials.json', scopes=SCOPES)
+        'google-credentials.json', scopes=SCOPES)
     # flow.redirect_uri = url_for('calendar.upcoming_tasks', _external=True)
     flow.redirect_uri = url_for('calendar.oauth2callback', _external=True)
     authorization_url, state = flow.authorization_url(
@@ -335,7 +335,7 @@ def oauth2callback():
     SCOPES = ['https://mail.google.com/']
 
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-        'credentials.json', scopes=SCOPES, state=state)
+        'google-credentials.json', scopes=SCOPES, state=state)
     flow.redirect_uri = flask.url_for('calendar.oauth2callback', _external=True)
 
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
