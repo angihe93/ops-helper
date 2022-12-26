@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template
+from flask import Blueprint, render_template, redirect, url_for, request
+import flask
 from datetime import datetime
 import os
 import psycopg2
@@ -8,6 +9,12 @@ from models.items import Items
 from operator import attrgetter
 from flask_login import login_required
 from pytz import timezone
+import google_auth_oauthlib.flow
+from googleapiclient.discovery import build
+import google.oauth2.credentials
+from email.message import EmailMessage
+from email.mime.text import MIMEText
+import base64
 
 calendar = Blueprint('calendar', __name__)
 
@@ -241,6 +248,7 @@ def upcoming_tasks():
             item = [item for item in item_infos if item_id==item.id][0]
             item_info.append([item.id,item.name,(item.address_lat,item.address_lng),item.address_formatted])
         # print('item_info:',item_info)
+        renter_info = [r for r in renter_infos if r.id==i.renter_id][0]
         return_str+=f"<ul><li>items: <ol>"
         for item in item_info:
             if 'dropoff' in i.task_type: # care about item location in dropoffs
@@ -268,9 +276,10 @@ def upcoming_tasks():
             return_str+="<li>delivery notes: "+str(i.notes)+"</li>"
             return_str+="</ul>"
         elif i.task_type=="type 1 pickup" or i.task_type=="type 1 dropoff":
-            return_str+="<li>remind user to submit availability</li></ul>"
+            url_for_email = flask.url_for('calendar.email',recipient=renter_info.email,first_name=renter_info.name.split(' ')[0],etype=i.task_type.split(' ')[-1],year=year,month=month,day=day,items=item_info) 
+            return_str+=f"""<li><a href={url_for_email} onclick="return confirm('Click OK to confirm sending email')">remind user to submit availability</a></li></ul>"""
 
-        renter_info = [r for r in renter_infos if r.id==i.renter_id][0]
+        
         # print('renter_info:',renter_info.id, renter_info.name, renter_info.email, renter_info.phone)
         return_str += "<details><summary>more info</summary>"
         return_str+= f"order id(s): {i.order_id}, logistics id: {i.logistics_id}, renter info: [id: {renter_info.id}, name: {renter_info.name}, email: {renter_info.email}, phone: {renter_info.phone}, address lat/lng: ({i.address_lat},{i.address_lng})]"
@@ -288,3 +297,142 @@ def upcoming_tasks():
 @login_required
 def past_tasks():
     return "<a href='calendar'>Main Calendar</a><p>This is Past Tasks</p>"
+
+
+@calendar.route('/oauth')
+@login_required
+def oauth():
+    SCOPES = ['https://mail.google.com/']
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+        'credentials.json', scopes=SCOPES)
+    # flow.redirect_uri = url_for('calendar.upcoming_tasks', _external=True)
+    flow.redirect_uri = url_for('calendar.oauth2callback', _external=True)
+    authorization_url, state = flow.authorization_url(
+        # Enable offline access so that you can refresh an access token without
+        # re-prompting the user for permission. Recommended for web server apps.
+        access_type='offline',
+        # Enable incremental authorization. Recommended as a best practice.
+        include_granted_scopes='true')
+    
+    # Store the state so the callback can verify the auth server response.
+    flask.session['state'] = state
+    
+    return redirect(authorization_url)
+
+def credentials_to_dict(credentials):
+  return {'token': credentials.token,
+          'refresh_token': credentials.refresh_token,
+          'token_uri': credentials.token_uri,
+          'client_id': credentials.client_id,
+          'client_secret': credentials.client_secret,
+          'scopes': credentials.scopes}
+
+@calendar.route('/oauth2callback')
+def oauth2callback():
+    # Specify the state when creating the flow in the callback so that it can
+    # verified in the authorization server response.
+    state = flask.session['state']
+    SCOPES = ['https://mail.google.com/']
+
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+        'credentials.json', scopes=SCOPES, state=state)
+    flow.redirect_uri = flask.url_for('calendar.oauth2callback', _external=True)
+
+    # Use the authorization server's response to fetch the OAuth 2.0 tokens.
+    authorization_response = flask.request.url
+    flow.fetch_token(authorization_response=authorization_response)
+
+    # Store credentials in the session.
+    # ACTION ITEM: In a production app, you likely want to save these
+    #              credentials in a persistent database instead.
+    credentials = flow.credentials
+    flask.session['credentials'] = credentials_to_dict(credentials)
+
+    # return flask.redirect(flask.url_for('calendar.email'))
+    return flask.redirect(flask.url_for('calendar.upcoming_tasks'))
+
+
+@calendar.route('/email')
+@login_required
+def email():
+    try:
+        credentials = google.oauth2.credentials.Credentials(**flask.session['credentials'])
+        # Call the Gmail API
+        service = build('gmail', 'v1', credentials=credentials) 
+
+    except: # error if not logged in to google oauth
+        return flask.redirect(flask.url_for('oauth'))
+    
+
+    etype = request.args.get('etype')
+    recipient = request.args.get('recipient')
+    first_name = request.args.get('first_name')
+    year = request.args.get('year')
+    month = request.args.get('month')
+    day = request.args.get('day')
+    items = request.args.getlist('items')
+    # print('items:',items, type(items))
+
+    dt = datetime(int(year),int(month),int(day))
+    dt_to_weekday = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday',
+                            3: 'Thursday', 4: 'Friday', 5: 'Saturday', 6: 'Sunday'}
+    weekday = dt_to_weekday[dt.weekday()]
+    mdy = f'{month}/{day}/{year}'
+
+    items_html = ""
+    try:
+        if any(isinstance(eval(i), list) for i in items): # if mutiple items
+            for item in items:
+                # print('item',item,type(item))
+                item_li = eval(item)
+                # print('item_li',item_li,type(item_li))
+                items_html+= f"<a href=https://www.hubbub.shop/item/{item_li[0]}>{item_li[1]}</a>, " #name
+            items_html= items_html[:-2]
+    except:
+        items_html+=f"<a href=https://www.hubbub.shop/item/{items[0]}>{items[1]}</a>, "
+
+    if etype == 'dropoff':
+        # print("if etype == 'dropoff'")
+        if len(items)>1:
+            subject = '[Hubbub] Schedule Drop-offs for Your Rentals'
+        else:
+            subject = '[Hubbub] Schedule Drop-off for Your Rental'
+        body_html = f"""<p>Hi {first_name}, </p>
+        <p> Hope you're doing well! We're reaching out regarding the upcoming start of your rental of {items_html} on <b>{weekday} {mdy}</b>. Please use <a href=https://www.hubbub.shop/accounts/u/orders>this link</a> to schedule your drop-off. Let us know if you have any questions. </p>
+        <p>All the best,</p>
+        <p>Team Hubbub</p>
+        """
+
+    elif etype =='pickup':
+        # print("elif etype =='pickup'")
+        subject = '[Hubbub] End of Rental Logistics'
+        body_html = f"""<p>Hi {first_name}, </p>
+            <p>Hope you're doing well and enjoying your rental! </p>
+            <p>We're reaching out regarding the upcoming end of your rental of {items_html} on <b>{weekday} {mdy}</b>. Please schedule your pick-up at <a href=https://www.hubbub.shop/accounts/u/orders>this link</a>, or use the link to set up a rental extension. Let us know if you have any questions.</p>
+            <p>All the best,</p>
+            <p>Team Hubbub</p>
+            """
+        
+    message = EmailMessage()
+    # body = MIMEText(f"<p>hello from hubbub!</p>",'html')
+    body = MIMEText(body_html,'html')
+    message.set_content(body)
+    # message['Subject'] = 'hubbub test'
+    message['Subject'] = subject
+    # message['To'] = 'ah3354@columbia.edu'
+    message['To'] = recipient
+    message['From'] = 'hello@hubbub.shop'
+    encoded_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    # for sending email:
+    create_message = {
+        'raw': encoded_message
+    }
+    service.users().messages().send(userId="me", body=create_message).execute()
+    # for saving draft email
+    # create_message = {
+    #     'message': {
+    #         'raw': encoded_message
+    #     }
+    # }
+    # service.users().drafts().create(userId="me", body=create_message).execute()
+    return f"<p>email sent.</p><p><a href={url_for('calendar.upcoming_tasks')}>back to upcoming tasks</a></p>"

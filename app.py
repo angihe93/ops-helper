@@ -42,10 +42,16 @@ app.register_blueprint(main_site_ops)
 
 @app.route("/")
 def index():
+    # if admin_user.is_authenticated:
+    #     return redirect(url_for('calendar.upcoming_tasks'))
     return redirect(url_for('login'))
 
 @app.route("/login", methods=("GET", "POST"))
 def login():
+    # print('admin_user.is_authenticated',admin_user.is_authenticated)
+    # if admin_user.is_authenticated:
+    #     return redirect(url_for('calendar.upcoming_tasks'))
+
     form = login_form()
 
     if form.validate_on_submit():
@@ -73,7 +79,11 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+    # return f"you've been logged out. <a href={url_for('login')}>log in</a>"
 
 @login_manager.user_loader
 def load_user(user_id):
     return admin_user
+
+if __name__ == "__main__":
+    app.run(debug=True, ssl_context='adhoc')
