@@ -56,7 +56,7 @@ def show_calendar():
     """
 
     return html
-    # return f"<a href='main_site_ops'>Main Site Ops</a><p>This is Calendar. This is {current_month}</p>"
+
 
 @calendar.route('/upcoming-tasks')
 @login_required
@@ -66,12 +66,9 @@ def upcoming_tasks():
      # 2) user filled out logistics form but ops has not confirmed,
      # 3) ops has confirmed time
     
-    # for each one, keep the ones with res_dt_start >= the current month being displayed
+    # display the ones with res_dt_start >= the current day
     # for each one, use order.ext_dt_end to get the true end date, keep the ones with ext_dt_end >= current month being displayed
-    tasks_to_display = set()  # make a class for objects of this type? that contains dropoff/pickup, date, time, whether it's type 1/2/3
 
-    # in the end, want the type of dropoff, the timeslots or the scheduled time, and the address (how granular)?
-   
     # upcoming dropoffs
     # type 1 dropoff
     month = datetime.now().strftime('%m')
@@ -231,8 +228,6 @@ def upcoming_tasks():
     except IndexError:
         pickups_3_grouped = []
 
-    # there may be repeats in dt_range_start and end, maybe turn them to sets?
-
     all_tasks.extend(pickups_1_grouped)
     all_tasks.extend(pickups_2_grouped)
     all_tasks.extend(pickups_3_grouped)
@@ -243,10 +238,7 @@ def upcoming_tasks():
 
     item_ids = [i.item_id for i in all_tasks]
     item_ids = [item for sublist in item_ids for item in sublist] # flatten item_ids list
-    # print('item_ids',item_ids)
     item_infos = Items.get_item_info(item_ids)
-    # for i in item_infos:
-    #     print(i.id,i.name,i.address_lat,i.address_lng)
 
     return_str = "<a href='calendar'>Calendar</a>&nbsp;&nbsp;<a href='main-site-ops'>Main Site Ops</a> <h2>Upcoming Tasks</h2> <p><ul>"
     
@@ -254,16 +246,12 @@ def upcoming_tasks():
         # print(i,i.task_type,i.logistics_id,type(str(i.logistics_id)),i.date)
         # display by default:
         return_str+="<li>"
-        return_str+=f"date: {str(i.date)}&nbsp;&nbsp;&nbsp;&nbsp;type: {str(i.task_type.split(' ')[-1])}&nbsp;&nbsp;&nbsp;&nbsp;time scheduled: {str(i.dt_sched_eta)}&nbsp;&nbsp;&nbsp;&nbsp;address: {str(i.address_formatted)}"
-        # return_str+="date: "+str(i.date)+"  "
-        # return_str+="time scheduled: "+str(i.dt_sched_eta)+"    "
-        # return_str+="address: "+str(i.address_formatted)
+        return_str+=f"date: {str(i.date)}&nbsp;&nbsp;&nbsp;type: {str(i.task_type.split(' ')[-1])}&nbsp;&nbsp;&nbsp;time scheduled: {str(i.dt_sched_eta)}&nbsp;&nbsp;&nbsp;address: {str(i.address_formatted)}"
         item_info = []
         for item_id in i.item_id: # for each item in the current task
             item = [item for item in item_infos if item_id==item.id][0]
             item_info.append([item.id,item.name,(item.address_lat,item.address_lng),item.address_formatted])
         # print('item_info:',item_info)
-        # item_info = [i for i in item_infos if i.id==i.item_id]
         return_str+=f"<ul><li>items: <ol>"
         for item in item_info:
             if 'dropoff' in i.task_type: # care about item location in dropoffs
@@ -292,18 +280,13 @@ def upcoming_tasks():
             return_str+="</ul>"
         elif i.task_type=="type 1 pickup" or i.task_type=="type 1 dropoff":
             return_str+="<li>remind user to submit availability</li></ul>"
-        
-        # return_str+="<li>item(s): "
+
         renter_info = [r for r in renter_infos if r.id==i.renter_id][0]
         # print('renter_info:',renter_info.id, renter_info.name, renter_info.email, renter_info.phone)
         return_str += "<details><summary>more info</summary>"
-        return_str+= f"order id(s): {i.order_id}, logistics id: {i.logistics_id}, renter address lat/lng: ({i.address_lat},{i.address_lng}), renter info: [id: {renter_info.id}, name: {renter_info.name}, email: {renter_info.email}, phone: {renter_info.phone}]"
-        # print("Users.get_renter_info(i.renter_id)",Users.get_renter_info(i.renter_id).id,Users.get_renter_info(i.renter_id).name,Users.get_renter_info(i.renter_id).phone,Users.get_renter_info(i.renter_id).email)
-        
+        return_str+= f"order id(s): {i.order_id}, logistics id: {i.logistics_id}, renter info: [id: {renter_info.id}, name: {renter_info.name}, email: {renter_info.email}, phone: {renter_info.phone}, address lat/lng: ({i.address_lat},{i.address_lng})]"
         return_str += "</details>"
-        # include in additional info (drop down arrow?): order id(s), logistics id, renter name, renter contact, address_lat, address_lng
 
-        # return_str+= "<li>task_type:" + str(i.task_type) + "    logistics_id:" + str(i.logistics_id) + "    order_id:" + str(i.order_id) + "    date:" + str(i.date) + "    dt_range_start:" + str(i.dt_range_start) + "    dt_range_end:" + str(i.dt_range_end) + "    dt_sched_eta:" + str(i.dt_sched_eta) + "    item_id:" + str(i.item_id) + "  renter_id:" + str(i.renter_id) + "  address_lat:" + str(i.address_lat) + "  address_lng:" + str(i.address_lng) + "  address_formatted" + str(str(i.address_formatted) + "</li>")
         return_str+='<li style="list-style:none;">&nbsp;</li>'
     
     return_str += "</ul></p>"
