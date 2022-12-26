@@ -361,7 +361,7 @@ def email():
         service = build('gmail', 'v1', credentials=credentials) 
 
     except: # error if not logged in to google oauth
-        return flask.redirect(flask.url_for('oauth'))
+        return flask.redirect(flask.url_for('calendar.oauth'))
     
 
     etype = request.args.get('etype')
