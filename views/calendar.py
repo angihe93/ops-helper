@@ -7,32 +7,21 @@ from models.users import Users
 from models.items import Items
 from operator import attrgetter
 from flask_login import login_required
+from pytz import timezone
 
 calendar = Blueprint('calendar', __name__)
 
-host = os.environ.get('DB_HOST')
-database = os.environ.get('DB_DB')
-user = os.environ.get('DB_USER')
-password = os.environ.get('DB_PW')
-
-
-def get_db_connection():
-    conn = psycopg2.connect(
-        host=host,
-        database=database,
-        user=user,
-        password=password)
-    return conn
+eastern = timezone('US/Eastern')
 
 @calendar.route('/calendar')
 @login_required
 def show_calendar():
     # get current month, start showing from there
     # show historical calendar if requested
-    current_month = datetime.now().strftime('%m') # returns string eg. '11' for november, '02' for feb
+    current_month = datetime.now(eastern).strftime('%m') # returns string eg. '11' for november, '02' for feb
     month_dict = {'01': ['Jan', 31], '02': ['Feb', 28], '03': ['Mar', 31], '04': ['Apr', 30], '05': ['May', 31], '06': ['Jun', 30],
                   '07': ['Jul', 31], '08': ['Aug', 31], '09': ['Sep', 30], '10': ['Oct', 31], '11': ['Nov', 30], '12': ['Dec', 31]}
-    current_year = datetime.now().strftime('%Y')
+    current_year = datetime.now(eastern).strftime('%Y')
     leap_year = 1 if int(current_year) % 4 == 0 and not int(current_year) % 100 == 0 else 0
     if leap_year==1:
         month_dict['02'] = ['Feb', 29]
@@ -71,9 +60,9 @@ def upcoming_tasks():
 
     # upcoming dropoffs
     # type 1 dropoff
-    month = datetime.now().strftime('%m')
-    year = datetime.now().strftime('%Y')
-    day = datetime.now().strftime('%d')
+    month = datetime.now(eastern).strftime('%m')
+    year = datetime.now(eastern).strftime('%Y')
+    day = datetime.now(eastern).strftime('%d')
     dropoffs_1 = OpsCalendar.get_upcoming_dropoffs_1(month, day, year)
     dropoffs_2 = OpsCalendar.get_upcoming_dropoffs_2(month, day, year)
     dropoffs_3 = OpsCalendar.get_upcoming_dropoffs_3(month, day, year)
