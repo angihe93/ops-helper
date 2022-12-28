@@ -85,5 +85,16 @@ def logout():
 def load_user(user_id):
     return admin_user
 
+# @app.route('/clear')
+# def clear_credentials():
+#     # print('clear:')
+#     # print('flask.session',flask.session)
+#     if 'credentials' in flask.session:
+#         del flask.session['credentials']
+#         del flask.session['state']
+#         # print('flask.session',flask.session)
+#     return ('Credentials have been cleared.<br><br> <a href="login">login</a>')  # +
+#     # print_index_table())
+
 if __name__ == "__main__":
     app.run(debug=True, ssl_context='adhoc')

@@ -276,7 +276,7 @@ def upcoming_tasks():
             return_str+="<li>delivery notes: "+str(i.notes)+"</li>"
             return_str+="</ul>"
         elif i.task_type=="type 1 pickup" or i.task_type=="type 1 dropoff":
-            url_for_email = flask.url_for('calendar.email',recipient=renter_info.email,first_name=renter_info.name.split(' ')[0],etype=i.task_type.split(' ')[-1],year=year,month=month,day=day,items=item_info) 
+            url_for_email = flask.url_for('calendar.email',recipient=renter_info.email,first_name=renter_info.name.split(' ')[0],etype=i.task_type.split(' ')[-1],date=i.date,items=item_info) 
             return_str+=f"""<li><a href={url_for_email} onclick="return confirm('Click OK to confirm sending email')">remind user to submit availability</a></li></ul>"""
 
         
@@ -338,6 +338,7 @@ def oauth2callback():
         'google-credentials.json', scopes=SCOPES, state=state)
     flow.redirect_uri = flask.url_for('calendar.oauth2callback', _external=True)
 
+    print('state:',state)
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
     authorization_response = flask.request.url
     flow.fetch_token(authorization_response=authorization_response)
@@ -367,11 +368,11 @@ def email():
     etype = request.args.get('etype')
     recipient = request.args.get('recipient')
     first_name = request.args.get('first_name')
-    year = request.args.get('year')
-    month = request.args.get('month')
-    day = request.args.get('day')
+    date = request.args.get('date')
+    year = date[:4]
+    month = date[5:7]
+    day = date[8:]
     items = request.args.getlist('items')
-    # print('items:',items, type(items))
 
     dt = datetime(int(year),int(month),int(day))
     dt_to_weekday = {0: 'Monday', 1: 'Tuesday', 2: 'Wednesday',
@@ -427,7 +428,12 @@ def email():
     create_message = {
         'raw': encoded_message
     }
-    service.users().messages().send(userId="me", body=create_message).execute()
+    try:
+        # print('in try of /email')
+        service.users().messages().send(userId="me", body=create_message).execute()
+    except:
+        # print('in except of /email')
+        return flask.redirect(flask.url_for('calendar.oauth'))
     # for saving draft email
     # create_message = {
     #     'message': {
