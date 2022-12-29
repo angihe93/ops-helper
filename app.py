@@ -43,14 +43,16 @@ app.register_blueprint(main_site_ops)
 @app.route("/")
 def index():
     # print('in / admin_user.is_authenticated',admin_user.is_authenticated)
-    if admin_user.is_authenticated:
-        return redirect(url_for('calendar.upcoming_tasks'))
+    # print('in / current_user.is_authenticated',current_user.is_authenticated)
+    # if current_user.is_authenticated:
+    #     return redirect(url_for('calendar.upcoming_tasks'))
     return redirect(url_for('login'))
 
 @app.route("/login", methods=("GET", "POST"))
 def login():
-    # print('in /login admin_user.is_authenticated',admin_user.is_authenticated)
-    if admin_user.is_authenticated:
+    # print('in /login admin_user.is_authenticated',admin_user.is_authenticated,admin_user)
+    # print('in /login current_user.is_authenticated',current_user.is_authenticated,current_user)
+    if current_user.is_authenticated:
         return redirect(url_for('calendar.upcoming_tasks'))
 
     form = login_form()

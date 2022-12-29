@@ -57,6 +57,7 @@ def show_calendar():
 @calendar.route('/upcoming-tasks')
 @login_required
 def upcoming_tasks():
+    # print('in /upcoming-tasks admin_user.is_authenticated',app.admin_user.is_authenticated,app.admin_user)
     # 3 types of tasks:
      # 1) user ordered and did not fill out logistics form,
      # 2) user filled out logistics form but ops has not confirmed,
@@ -67,6 +68,7 @@ def upcoming_tasks():
 
     # upcoming dropoffs
     # type 1 dropoff
+    # print('in /upcoming-tasks current_user.is_authenticated',current_user.is_authenticated,current_user)
     month = datetime.now(eastern).strftime('%m')
     year = datetime.now(eastern).strftime('%Y')
     day = datetime.now(eastern).strftime('%d')
